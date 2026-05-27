@@ -1,450 +1,386 @@
-// ============================================
-// ZACHRAŇ ZNÁMKU — FULL APP (Next.js + React)
-// Single-file demo architecture
-// Tech:
-// - Next.js App Router
-// - TailwindCSS
-// - Framer Motion
-// - Recharts
-// - Supabase/Firebase ready
-// ============================================
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Zachraň známku</title>
 
-"use client";
+  <!-- Tailwind CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
 
-import React, { useMemo, useState } from "react";
-import {
-  CalendarDays,
-  Trophy,
-  Flame,
-  AlertTriangle,
-  Brain,
-  BookOpen,
-  Target,
-} from "lucide-react";
+  <!-- Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
 
-import {
-  ResponsiveContainer,
-  LineChart,
-  Line,
-  CartesianGrid,
-  XAxis,
-  Tooltip,
-} from "recharts";
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
-import { motion } from "framer-motion";
+  <style>
+    body {
+      background: #070B14;
+      overflow-x: hidden;
+      font-family: Inter, sans-serif;
+    }
 
-// ============================================
-// TYPES
-// ============================================
+    .glass {
+      background: rgba(255,255,255,0.08);
+      backdrop-filter: blur(20px);
+      border: 1px solid rgba(255,255,255,0.08);
+    }
 
-type Grade = {
-  value: number;
-  weight: number;
-};
+    .gradient-text {
+      background: linear-gradient(to right, #60a5fa, #8b5cf6);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
 
-type Subject = {
-  id: number;
-  name: string;
-  grades: Grade[];
-  targetAverage: number;
-  upcomingTest?: string;
-};
+    .bg-blur-1 {
+      position: fixed;
+      width: 500px;
+      height: 500px;
+      background: rgba(59,130,246,0.25);
+      filter: blur(140px);
+      top: -100px;
+      left: -100px;
+      z-index: -1;
+    }
 
-type StudyTask = {
-  subject: string;
-  task: string;
-  minutes: number;
-  priority: "High" | "Medium" | "Low";
-};
+    .bg-blur-2 {
+      position: fixed;
+      width: 500px;
+      height: 500px;
+      background: rgba(139,92,246,0.25);
+      filter: blur(140px);
+      bottom: -100px;
+      right: -100px;
+      z-index: -1;
+    }
 
-// ============================================
-// MOCK DATA
-// ============================================
+    .card-hover {
+      transition: 0.3s;
+    }
 
-const initialSubjects: Subject[] = [
-  {
-    id: 1,
-    name: "Matematika",
-    targetAverage: 2,
-    upcomingTest: "2026-05-30",
-    grades: [
-      { value: 3, weight: 1 },
-      { value: 2, weight: 1 },
-      { value: 4, weight: 2 },
-    ],
-  },
-  {
-    id: 2,
-    name: "Angličtina",
-    targetAverage: 1.5,
-    upcomingTest: "2026-05-28",
-    grades: [
-      { value: 1, weight: 1 },
-      { value: 2, weight: 1 },
-      { value: 1, weight: 2 },
-    ],
-  },
-  {
-    id: 3,
-    name: "Dějepis",
-    targetAverage: 2,
-    upcomingTest: "2026-06-02",
-    grades: [
-      { value: 2, weight: 1 },
-      { value: 3, weight: 1 },
-    ],
-  },
-];
+    .card-hover:hover {
+      transform: translateY(-4px);
+    }
+  </style>
+</head>
 
-// ============================================
-// HELPERS
-// ============================================
+<body class="text-white min-h-screen">
 
-function calculateAverage(grades: Grade[]) {
-  const total = grades.reduce((acc, g) => acc + g.value * g.weight, 0);
-  const weights = grades.reduce((acc, g) => acc + g.weight, 0);
+  <!-- Background -->
+  <div class="bg-blur-1"></div>
+  <div class="bg-blur-2"></div>
 
-  return weights === 0 ? 0 : total / weights;
-}
+  <div class="max-w-7xl mx-auto p-6">
 
-function neededGrade(subject: Subject) {
-  const currentAverage = calculateAverage(subject.grades);
+    <!-- HEADER -->
+    <div class="flex flex-col lg:flex-row justify-between gap-6 mb-8">
 
-  if (currentAverage <= subject.targetAverage) {
-    return "Cíl zatím plníš.";
-  }
+      <div>
+        <h1 class="text-5xl font-black gradient-text">
+          Zachraň známku
+        </h1>
 
-  return `Potřebuješ maximálně 2 z další větší písemky.`;
-}
-
-function getRiskLevel(avg: number) {
-  if (avg >= 3.5) return "critical";
-  if (avg >= 2.5) return "warning";
-  return "good";
-}
-
-function generateStudyPlan(subjects: Subject[]): StudyTask[] {
-  return subjects.map((s) => {
-    const avg = calculateAverage(s.grades);
-
-    return {
-      subject: s.name,
-      task:
-        avg > s.targetAverage
-          ? "Opakování + procvičování testových úloh"
-          : "Lehké opakování a upevnění látky",
-      minutes: avg > s.targetAverage ? 90 : 45,
-      priority: avg > s.targetAverage ? "High" : "Medium",
-    };
-  });
-}
-
-// ============================================
-// COMPONENTS
-// ============================================
-
-function GlassCard({
-  children,
-  className = "",
-}: {
-  children: React.ReactNode;
-  className?: string;
-}) {
-  return (
-    <div
-      className={`
-      bg-white/10
-      backdrop-blur-xl
-      border border-white/10
-      rounded-3xl
-      shadow-2xl
-      ${className}
-    `}
-    >
-      {children}
-    </div>
-  );
-}
-
-function ProgressBar({ value }: { value: number }) {
-  return (
-    <div className="w-full h-3 bg-white/10 rounded-full overflow-hidden">
-      <div
-        className="h-full rounded-full bg-gradient-to-r from-blue-500 to-violet-500 transition-all"
-        style={{ width: `${value}%` }}
-      />
-    </div>
-  );
-}
-
-// ============================================
-// MAIN APP
-// ============================================
-
-export default function ZachranZnamkuApp() {
-  const [subjects] = useState(initialSubjects);
-
-  const studyPlan = useMemo(
-    () => generateStudyPlan(subjects),
-    [subjects]
-  );
-
-  const totalXP = 1280;
-  const streak = 14;
-
-  return (
-    <div className="min-h-screen bg-[#09090f] text-white p-6">
-      {/* BACKGROUND */}
-      <div className="fixed inset-0 overflow-hidden -z-10">
-        <div className="absolute w-[500px] h-[500px] bg-blue-600/20 blur-[140px] top-0 left-0" />
-        <div className="absolute w-[500px] h-[500px] bg-violet-600/20 blur-[140px] bottom-0 right-0" />
+        <p class="text-white/60 mt-2">
+          AI dashboard pro gymnazisty
+        </p>
       </div>
 
-      {/* HEADER */}
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <h1 className="text-4xl font-black tracking-tight">
-            Zachraň známku
-          </h1>
-          <p className="text-white/60 mt-1">
-            AI studentský dashboard
-          </p>
+      <div class="flex gap-4">
+
+        <div class="glass rounded-3xl px-6 py-4 flex items-center gap-3">
+          <i data-lucide="flame" class="text-orange-400"></i>
+
+          <div>
+            <p class="text-sm text-white/50">Streak</p>
+            <p class="font-bold text-lg">14 dní</p>
+          </div>
         </div>
 
-        <div className="flex gap-4">
-          <GlassCard className="px-5 py-3 flex items-center gap-3">
-            <Flame className="text-orange-400" />
-            <div>
-              <p className="text-sm text-white/60">Streak</p>
-              <p className="font-bold">{streak} dní</p>
-            </div>
-          </GlassCard>
+        <div class="glass rounded-3xl px-6 py-4 flex items-center gap-3">
+          <i data-lucide="trophy" class="text-yellow-400"></i>
 
-          <GlassCard className="px-5 py-3 flex items-center gap-3">
-            <Trophy className="text-yellow-400" />
-            <div>
-              <p className="text-sm text-white/60">XP</p>
-              <p className="font-bold">{totalXP}</p>
-            </div>
-          </GlassCard>
+          <div>
+            <p class="text-sm text-white/50">XP</p>
+            <p class="font-bold text-lg">1280</p>
+          </div>
         </div>
+
       </div>
+    </div>
 
-      {/* GRID */}
-      <div className="grid lg:grid-cols-3 gap-6">
-        {/* LEFT */}
-        <div className="lg:col-span-2 flex flex-col gap-6">
-          {/* SUBJECTS */}
-          <GlassCard className="p-6">
-            <div className="flex items-center gap-3 mb-6">
-              <BookOpen />
-              <h2 className="text-2xl font-bold">
-                Přehled předmětů
-              </h2>
-            </div>
+    <!-- GRID -->
+    <div class="grid lg:grid-cols-3 gap-6">
 
-            <div className="space-y-5">
-              {subjects.map((subject) => {
-                const avg = calculateAverage(subject.grades);
-                const risk = getRiskLevel(avg);
+      <!-- LEFT -->
+      <div class="lg:col-span-2 space-y-6">
 
-                return (
-                  <motion.div
-                    key={subject.id}
-                    whileHover={{ scale: 1.01 }}
-                    className="bg-white/5 rounded-2xl p-5 border border-white/10"
-                  >
-                    <div className="flex items-center justify-between mb-4">
-                      <div>
-                        <h3 className="text-xl font-bold">
-                          {subject.name}
-                        </h3>
+        <!-- SUBJECTS -->
+        <div class="glass rounded-3xl p-6">
 
-                        <p className="text-white/50 text-sm">
-                          Cíl: {subject.targetAverage}
-                        </p>
-                      </div>
+          <div class="flex items-center gap-3 mb-6">
+            <i data-lucide="book-open"></i>
+            <h2 class="text-2xl font-bold">Předměty</h2>
+          </div>
 
-                      <div
-                        className={`
-                        px-3 py-1 rounded-full text-sm font-bold
-                        ${
-                          risk === "critical"
-                            ? "bg-red-500/20 text-red-300"
-                            : risk === "warning"
-                            ? "bg-yellow-500/20 text-yellow-300"
-                            : "bg-green-500/20 text-green-300"
-                        }
-                      `}
-                      >
-                        Průměr {avg.toFixed(2)}
-                      </div>
-                    </div>
+          <div class="space-y-5">
 
-                    <ProgressBar
-                      value={Math.max(
-                        10,
-                        100 - avg * 25
-                      )}
-                    />
+            <!-- CARD -->
+            <div class="glass rounded-2xl p-5 card-hover">
 
-                    <div className="mt-4 flex items-center justify-between">
-                      <p className="text-white/70 text-sm">
-                        {neededGrade(subject)}
-                      </p>
+              <div class="flex justify-between items-center mb-4">
 
-                      {risk !== "good" && (
-                        <div className="flex items-center gap-2 text-red-300">
-                          <AlertTriangle size={16} />
-                          Rizikový předmět
-                        </div>
-                      )}
-                    </div>
-                  </motion.div>
-                );
-              })}
-            </div>
-          </GlassCard>
+                <div>
+                  <h3 class="text-xl font-bold">
+                    Matematika
+                  </h3>
 
-          {/* CHART */}
-          <GlassCard className="p-6">
-            <div className="flex items-center gap-3 mb-6">
-              <Target />
-              <h2 className="text-2xl font-bold">
-                Vývoj známek
-              </h2>
-            </div>
-
-            <div className="h-[300px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart
-                  data={[
-                    { month: "Září", avg: 3.2 },
-                    { month: "Říjen", avg: 2.9 },
-                    { month: "Listopad", avg: 2.7 },
-                    { month: "Prosinec", avg: 2.3 },
-                    { month: "Leden", avg: 2.0 },
-                  ]}
-                >
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="month" />
-                  <Tooltip />
-                  <Line
-                    type="monotone"
-                    dataKey="avg"
-                    strokeWidth={4}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-          </GlassCard>
-        </div>
-
-        {/* RIGHT SIDEBAR */}
-        <div className="flex flex-col gap-6">
-          {/* TODAY PLAN */}
-          <GlassCard className="p-6">
-            <div className="flex items-center gap-3 mb-5">
-              <Brain />
-              <h2 className="text-xl font-bold">
-                AI plán učení
-              </h2>
-            </div>
-
-            <div className="space-y-4">
-              {studyPlan.map((task, i) => (
-                <div
-                  key={i}
-                  className="bg-white/5 p-4 rounded-2xl border border-white/10"
-                >
-                  <div className="flex items-center justify-between mb-2">
-                    <h3 className="font-bold">
-                      {task.subject}
-                    </h3>
-
-                    <span
-                      className={`
-                      text-xs px-2 py-1 rounded-full
-                      ${
-                        task.priority === "High"
-                          ? "bg-red-500/20 text-red-300"
-                          : "bg-blue-500/20 text-blue-300"
-                      }
-                    `}
-                    >
-                      {task.priority}
-                    </span>
-                  </div>
-
-                  <p className="text-sm text-white/70">
-                    {task.task}
-                  </p>
-
-                  <p className="mt-2 text-sm font-semibold">
-                    {task.minutes} minut
+                  <p class="text-white/50 text-sm">
+                    Cíl: 2
                   </p>
                 </div>
-              ))}
-            </div>
-          </GlassCard>
 
-          {/* CALENDAR */}
-          <GlassCard className="p-6">
-            <div className="flex items-center gap-3 mb-5">
-              <CalendarDays />
-              <h2 className="text-xl font-bold">
-                Nadcházející testy
-              </h2>
-            </div>
-
-            <div className="space-y-4">
-              {subjects.map((s) => (
-                <div
-                  key={s.id}
-                  className="flex items-center justify-between bg-white/5 p-4 rounded-2xl border border-white/10"
-                >
-                  <div>
-                    <p className="font-semibold">{s.name}</p>
-                    <p className="text-sm text-white/50">
-                      Písemka
-                    </p>
-                  </div>
-
-                  <div className="text-right">
-                    <p className="font-bold">
-                      {s.upcomingTest}
-                    </p>
-                  </div>
+                <div class="bg-red-500/20 text-red-300 px-4 py-1 rounded-full font-bold">
+                  3.25
                 </div>
-              ))}
-            </div>
-          </GlassCard>
 
-          {/* ACHIEVEMENTS */}
-          <GlassCard className="p-6">
-            <div className="flex items-center gap-3 mb-5">
-              <Trophy />
-              <h2 className="text-xl font-bold">
-                Achievementy
-              </h2>
-            </div>
-
-            <div className="space-y-3">
-              <div className="bg-white/5 rounded-2xl p-4 border border-white/10">
-                🔥 14denní streak
               </div>
 
-              <div className="bg-white/5 rounded-2xl p-4 border border-white/10">
-                📚 5 dokončených study sessions
+              <div class="w-full h-3 bg-white/10 rounded-full overflow-hidden mb-4">
+                <div class="h-full bg-gradient-to-r from-blue-500 to-violet-500 w-[35%]"></div>
               </div>
 
-              <div className="bg-white/5 rounded-2xl p-4 border border-white/10">
-                🧠 AI plán splněn na 82 %
+              <div class="flex justify-between items-center">
+
+                <p class="text-sm text-white/70">
+                  Potřebuješ 1 z velké písemky.
+                </p>
+
+                <div class="flex items-center gap-2 text-red-300 text-sm">
+                  <i data-lucide="alert-triangle" class="w-4 h-4"></i>
+                  Rizikový předmět
+                </div>
+
               </div>
+
             </div>
-          </GlassCard>
+
+            <!-- CARD -->
+            <div class="glass rounded-2xl p-5 card-hover">
+
+              <div class="flex justify-between items-center mb-4">
+
+                <div>
+                  <h3 class="text-xl font-bold">
+                    Angličtina
+                  </h3>
+
+                  <p class="text-white/50 text-sm">
+                    Cíl: 1.5
+                  </p>
+                </div>
+
+                <div class="bg-green-500/20 text-green-300 px-4 py-1 rounded-full font-bold">
+                  1.25
+                </div>
+
+              </div>
+
+              <div class="w-full h-3 bg-white/10 rounded-full overflow-hidden mb-4">
+                <div class="h-full bg-gradient-to-r from-blue-500 to-violet-500 w-[85%]"></div>
+              </div>
+
+              <div class="flex justify-between items-center">
+
+                <p class="text-sm text-white/70">
+                  Výborný progres.
+                </p>
+
+              </div>
+
+            </div>
+
+          </div>
+
         </div>
+
+        <!-- CHART -->
+        <div class="glass rounded-3xl p-6">
+
+          <h2 class="text-2xl font-bold mb-6">
+            Vývoj průměru
+          </h2>
+
+          <canvas id="gradesChart"></canvas>
+
+        </div>
+
       </div>
+
+      <!-- RIGHT -->
+      <div class="space-y-6">
+
+        <!-- AI PLAN -->
+        <div class="glass rounded-3xl p-6">
+
+          <div class="flex items-center gap-3 mb-6">
+            <i data-lucide="brain"></i>
+            <h2 class="text-2xl font-bold">
+              AI plán učení
+            </h2>
+          </div>
+
+          <div class="space-y-4">
+
+            <div class="glass rounded-2xl p-4">
+              <div class="flex justify-between mb-2">
+                <h3 class="font-bold">Matematika</h3>
+
+                <span class="bg-red-500/20 text-red-300 text-xs px-2 py-1 rounded-full">
+                  HIGH
+                </span>
+              </div>
+
+              <p class="text-sm text-white/70">
+                Procvič diferenciální rovnice a testové úlohy.
+              </p>
+
+              <p class="mt-2 font-bold">
+                90 minut
+              </p>
+            </div>
+
+            <div class="glass rounded-2xl p-4">
+              <div class="flex justify-between mb-2">
+                <h3 class="font-bold">Angličtina</h3>
+
+                <span class="bg-blue-500/20 text-blue-300 text-xs px-2 py-1 rounded-full">
+                  MEDIUM
+                </span>
+              </div>
+
+              <p class="text-sm text-white/70">
+                Speaking practice + essay writing.
+              </p>
+
+              <p class="mt-2 font-bold">
+                45 minut
+              </p>
+            </div>
+
+          </div>
+
+        </div>
+
+        <!-- TESTS -->
+        <div class="glass rounded-3xl p-6">
+
+          <div class="flex items-center gap-3 mb-6">
+            <i data-lucide="calendar"></i>
+
+            <h2 class="text-2xl font-bold">
+              Testy
+            </h2>
+          </div>
+
+          <div class="space-y-4">
+
+            <div class="glass rounded-2xl p-4 flex justify-between">
+              <div>
+                <p class="font-bold">Matematika</p>
+                <p class="text-sm text-white/50">Velká písemka</p>
+              </div>
+
+              <p class="font-bold">Zítra</p>
+            </div>
+
+            <div class="glass rounded-2xl p-4 flex justify-between">
+              <div>
+                <p class="font-bold">Dějepis</p>
+                <p class="text-sm text-white/50">Opakování</p>
+              </div>
+
+              <p class="font-bold">Pondělí</p>
+            </div>
+
+          </div>
+
+        </div>
+
+        <!-- ACHIEVEMENTS -->
+        <div class="glass rounded-3xl p-6">
+
+          <div class="flex items-center gap-3 mb-6">
+            <i data-lucide="trophy"></i>
+
+            <h2 class="text-2xl font-bold">
+              Achievementy
+            </h2>
+          </div>
+
+          <div class="space-y-4">
+
+            <div class="glass rounded-2xl p-4">
+              🔥 14denní streak
+            </div>
+
+            <div class="glass rounded-2xl p-4">
+              📚 5 dokončených study sessions
+            </div>
+
+            <div class="glass rounded-2xl p-4">
+              🧠 AI plán splněn na 82 %
+            </div>
+
+          </div>
+
+        </div>
+
+      </div>
+
     </div>
-  );
-}
+
+  </div>
+
+  <script>
+    lucide.createIcons();
+
+    const ctx = document.getElementById('gradesChart');
+
+    new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: ['Zář', 'Říj', 'Lis', 'Pro', 'Led'],
+        datasets: [{
+          label: 'Průměr',
+          data: [3.1, 2.8, 2.5, 2.2, 1.9],
+          borderWidth: 4,
+          tension: 0.4
+        }]
+      },
+      options: {
+        plugins: {
+          legend: {
+            labels: {
+              color: 'white'
+            }
+          }
+        },
+        scales: {
+          x: {
+            ticks: {
+              color: 'white'
+            }
+          },
+          y: {
+            ticks: {
+              color: 'white'
+            }
+          }
+        }
+      }
+    });
+  </script>
+
+</body>
+</html>
